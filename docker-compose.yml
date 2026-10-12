@@ -1,0 +1,13 @@
+# Deployed to kichi at /mnt/user/appdata/gapless-amp/.
+# Static files only: the music never leaves the phone, so there is no data volume.
+services:
+  gapless-amp:
+    image: python:3.12-alpine
+    container_name: gapless-amp
+    command: python3 /app/serve.py 8080
+    working_dir: /app
+    volumes:
+      - /mnt/user/appdata/gapless-amp/app:/app:ro
+    ports:
+      - "127.0.0.1:48081:8080"   # reached only through `tailscale serve` on :8445
+    restart: unless-stopped

@@ -16,9 +16,10 @@ html, body {
   -webkit-user-select: none; user-select: none;
 }
 
-/* Webamp positions its windows itself; the app scales the lot to the screen. */
-#stage { position: fixed; inset: env(safe-area-inset-top) 0 0 0; }
-#webamp { position: absolute; top: env(safe-area-inset-top); left: 0; transform-origin: 0 0; }
+/* Webamp positions its windows itself; the app zooms the lot to fit the screen.
+   #stage is only a measuring box (see placeStage); its padding reads the notch. */
+#stage { position: fixed; left: 0; top: 0; padding-top: env(safe-area-inset-top); box-sizing: content-box; pointer-events: none; }
+#webamp { image-rendering: pixelated; }
 
 button {
   font: inherit; color: var(--ink);

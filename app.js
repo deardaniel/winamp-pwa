@@ -15,12 +15,25 @@ const ROW_H = 29;        // the playlist grows in steps of this
 function layout() {
   const scale = Math.min(window.innerWidth / WIDTH, 3);
   const bar = $("bar").getBoundingClientRect().height;
-  const top = $("stage").getBoundingClientRect().top;
-  const room = (window.innerHeight - top - bar) / scale - WINDOW_H * 3;
-  return { scale, extraRows: Math.max(0, Math.floor(room / ROW_H)) };
+  const safeTop = parseFloat(getComputedStyle($("stage")).paddingTop) || 0; // the notch
+  const room = (window.innerHeight - safeTop - bar) / scale - WINDOW_H * 3;
+  return { scale, safeTop, extraRows: Math.max(0, Math.floor(room / ROW_H)) };
 }
 
-const { scale, extraRows } = layout();
+// Webamp centres its windows in the node it's given, measuring in unzoomed
+// pixels. So hand it a box exactly the size of the column, placed where the
+// column should sit once zoomed, and the centring works out to no offset.
+function placeStage({ scale, safeTop, extraRows }) {
+  const stage = $("stage");
+  stage.style.paddingTop = 0; // measured already; it would skew the centring
+  stage.style.top = `${safeTop / scale}px`;
+  stage.style.width = `${WIDTH}px`;
+  stage.style.height = `${WINDOW_H * 3 + extraRows * ROW_H}px`;
+}
+
+const fit = layout();
+const { extraRows } = fit;
+placeStage(fit);
 const savedSkin = await store.getSetting("skin").catch(() => null);
 
 const webamp = new Webamp({
@@ -37,7 +50,7 @@ const media = webamp.media;
 
 await webamp.renderWhenReady($("stage"));
 const root = document.getElementById("webamp");
-const applyScale = () => { root.style.zoom = layout().scale; };
+const applyScale = () => { root.style.zoom = Math.min(window.innerWidth / WIDTH, 3); };
 applyScale();
 window.addEventListener("resize", applyScale);
 
