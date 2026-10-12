@@ -50,9 +50,27 @@ const media = webamp.media;
 
 await webamp.renderWhenReady($("stage"));
 const root = document.getElementById("webamp");
-const applyScale = () => { root.style.zoom = Math.min(window.innerWidth / WIDTH, 3); };
-applyScale();
-window.addEventListener("resize", applyScale);
+
+// The playlist only resizes in whole 29px steps, which leaves a strip of dead
+// space above the bar. Its side borders tile, so pin its height to the exact
+// remainder instead. A stylesheet rule, because Webamp rewrites the inline one.
+const exactHeight = document.head.appendChild(document.createElement("style"));
+let rows = fit.extraRows;
+function refit() {
+  const now = { ...layout(), safeTop: fit.safeTop };
+  root.style.zoom = now.scale;
+  const bar = $("bar").getBoundingClientRect().height;
+  const room = (window.innerHeight - now.safeTop - bar) / now.scale - WINDOW_H * 2;
+  const wantRows = Math.max(0, Math.floor((room - WINDOW_H) / ROW_H));
+  if (wantRows !== rows) {
+    rows = wantRows;
+    webamp.store.dispatch({ type: "WINDOW_SIZE_CHANGED", windowId: "playlist", size: [0, rows] });
+  }
+  exactHeight.textContent = room > WINDOW_H ? `#webamp #playlist-window { height: ${room}px !important; }` : "";
+}
+refit();
+window.addEventListener("resize", refit);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
 
 /* ---- telling the audio engine what comes next ---- */
 

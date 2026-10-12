@@ -4,7 +4,7 @@
 // So this is cache-first, refreshed in the background: a launch never waits on
 // the network, and a new build shows up on the launch after it was fetched.
 // Bump VERSION when a file is removed from the app, to drop the old cache.
-const VERSION = "1";
+const VERSION = "2";
 const CACHE = `gapless-amp-${VERSION}`;
 
 const SHELL = [
