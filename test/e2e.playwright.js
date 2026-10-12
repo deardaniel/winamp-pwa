@@ -22,9 +22,17 @@ async (page) => {
     const files = [];
     for (const [src, as] of Object.entries(names))
       files.push(new File([await (await fetch("test/fixtures/" + src)).blob()], as, { type: "audio/mpeg" }));
-    await amp.importFiles(files);
-    return amp.albums().map(a => `${a.artist} / ${a.title}: ${a.tracks.map(t => t.title || t.fileName).join(", ")}`);
+    await amp.addFiles(files);
+    const state = amp.webamp.store.getState();
+    return state.playlist.trackOrder.map(id => state.tracks[id].title || state.tracks[id].defaultName);
   });
+  // Keep only the album: REM > CROP on its three tracks (they sort together, by tag).
+  await page.evaluate(() => {
+    const state = amp.webamp.store.getState();
+    const ids = state.playlist.trackOrder.filter(id => !/^Part /.test(state.tracks[id].title || ""));
+    amp.webamp.store.dispatch({ type: "REMOVE_TRACKS", ids });
+  });
+  if (await page.isVisible("#dialog")) await page.click("#close-dialog");
 
   await page.evaluate(() => {
     const m = amp.media, ctx = m._ctx;
@@ -37,14 +45,15 @@ async (page) => {
     const onWorklet = m._node.port.onmessage;
     m._node.port.onmessage = e => { if (e.data.type === "ended") window.played = e.data.played; onWorklet(e); };
     const load = m.loadFromUrl.bind(m);
+    // The first track was cued when the files were added; only the two joins load from here on.
     m.loadFromUrl = (url, auto) => { window.trail.push(m._adopting === url ? "joined" : "started"); return load(url, auto); };
   });
-  await page.click("#albums li[data-key] .title >> text=Gap Test");
+  await page.click("#play");
   await page.waitForTimeout(6000);
   const midway = await page.evaluate(() => ({
     track: amp.webamp.store.getState().playlist.currentTrack,
     elapsed: +amp.media.timeElapsed().toFixed(1),
-    now: document.getElementById("now").textContent,
+    now: (s => (s.tracks[s.playlist.currentTrack] || {}).title)(amp.webamp.store.getState()),
   }));
   await page.waitForTimeout(7500);
 
@@ -74,7 +83,7 @@ async (page) => {
   });
 
   // ffmpeg's LAME wrapper leaves 20 samples of silence after the last track.
-  const ok = audio.trail.join() === "started,joined,joined" &&
+  const ok = audio.trail.join() === "joined,joined" &&
     audio.errJoin1 < 0.03 && audio.errJoin2 < 0.03 && audio.errMid < 0.01 &&
     audio.samplesPlayed - audio.samplesInSource === 20 && audio.status === "STOPPED" && midway.track != null;
   return { result: ok ? "PASS" : "FAIL", imported, midway, audio };

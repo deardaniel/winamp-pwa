@@ -31,6 +31,7 @@ export const putTrack = t => tx("tracks", "readwrite", s => s.put(t));
 export const deleteTrack = id => tx("tracks", "readwrite", s => s.delete(id));
 export const getCover = id => tx("covers", "readonly", s => s.get(id));
 export const putCover = (id, cover) => tx("covers", "readwrite", s => s.put(cover, id));
+export const coverKeys = () => tx("covers", "readonly", s => s.getAllKeys());
 export const deleteCover = id => tx("covers", "readwrite", s => s.delete(id));
 export const getSetting = key => tx("settings", "readonly", s => s.get(key));
 export const setSetting = (key, value) => tx("settings", "readwrite", s => s.put(value, key));

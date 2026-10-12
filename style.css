@@ -26,39 +26,21 @@ button {
 }
 button:active { background: #7b8494; box-shadow: inset 1px 1px 0 #4a5a6b; padding-top: 1px; }
 
-/* The strip under the player: the main window's body and bevel. */
+/* The strip under the player, over the home indicator: the main window's body colour. */
 #bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; zoom: var(--scale);
-  height: calc(28px + env(safe-area-inset-bottom) / var(--scale));
-  padding: 4px 5px calc(3px + env(safe-area-inset-bottom) / var(--scale));
-  display: flex; align-items: center; gap: 5px;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  height: env(safe-area-inset-bottom);
   background: linear-gradient(90deg, #25253a, #383758 50%, #25253a);
-  border: solid #101019; border-width: 1px 1px 0;
-  box-shadow: inset 1px 1px 0 #5f5f68, inset -1px 0 0 #171724;
-}
-/* A window over the player hides the bar without changing the layout it measures. */
-.sheet-open #bar { visibility: hidden; }
-/* The song readout: the skin's black inset display. */
-#now {
-  flex: 1; min-width: 0; height: 14px; padding: 0 3px;
-  font: 8px/12px Arial, Helvetica, sans-serif; color: #00e000; background: #000;
-  border: 1px solid; border-color: #101019 #5f5f68 #5f5f68 #101019;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* ---- skin windows: the library and dialogs, framed by the skin's GEN sprites ---- */
-#webamp #library, #webamp #dialog {
+/* ---- skin windows: dialogs, framed by the skin's GEN sprites ---- */
+#webamp #dialog {
   pointer-events: auto;
   font: 9px/1.25 var(--pl-font, Arial), Arial, Helvetica, sans-serif;
   color: var(--pl-normal, #00ff00);
 }
-#webamp #library *, #webamp #dialog * { box-sizing: border-box; }
-#webamp #library[hidden], #webamp #dialog[hidden] { display: none; }
-#webamp #library {
-  position: fixed; z-index: 100; left: 0; right: 0; width: auto; height: auto;
-  top: calc(env(safe-area-inset-top) / var(--scale));
-  bottom: calc(env(safe-area-inset-bottom) / var(--scale));
-}
+#webamp #dialog * { box-sizing: border-box; }
+#webamp #dialog[hidden] { display: none; }
 #webamp .gen-middle { min-height: 0; }
 #webamp .gen-middle-center { display: flex; flex-direction: column; min-width: 0; min-height: 30px; background: var(--pl-bg, #000); }
 #webamp .gen-top-title { white-space: nowrap; }
@@ -66,26 +48,8 @@ button:active { background: #7b8494; box-shadow: inset 1px 1px 0 #4a5a6b; paddin
 #webamp .gen-close { height: 9px; padding: 0; background: none; border: 0; box-shadow: none; }
 #webamp .gen-close::before { content: ""; position: absolute; inset: -5px -4px -10px -16px; }
 
-.actions, #library footer { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 3px; }
-.actions button, #library footer button { flex: 1; }
-#status { margin: 0; padding: 1px 4px 3px; font-size: 8px; }
-#status:empty { display: none; }
-
-/* The album list is a playlist: its colours and font come from the skin's PLEDIT.TXT. */
-#albums { flex: 1; min-height: 0; margin: 0; padding: 0; list-style: none; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-#albums li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; }
-#albums li:active { background: var(--pl-selbg, #0000ff); }
-#albums img, #albums .nocover { width: 26px; height: 26px; flex: none; object-fit: cover; image-rendering: auto; }
-#albums .nocover { display: grid; place-items: center; font-size: 12px; opacity: .5; box-shadow: inset 0 0 0 1px; }
-#albums .meta { flex: 1; min-width: 0; }
-#albums .title, #albums .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#albums .title { font-size: 10px; }
-#albums .sub { font-size: 8px; opacity: .65; }
-#albums .del { display: none; }
-#library.editing #albums .del { display: block; }
-#albums .empty { display: block; padding: 20px 14px; text-align: center; line-height: 1.6; opacity: .75; }
-#usage { flex: 0 0 100%; padding: 0 1px; font-size: 8px; opacity: .65; }
-#usage:empty { display: none; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding-top: 5px; }
+.actions button { flex: 1; }
 
 #webamp #dialog { position: fixed; z-index: 110; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .6); }
 #webamp #dialog .box { position: relative; width: 251px; height: auto; max-height: 80%; }

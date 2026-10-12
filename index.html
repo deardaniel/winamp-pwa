@@ -11,33 +11,16 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <main id="stage"></main>
 
-<nav id="bar">
-  <button id="open-library" type="button">Library</button>
-  <span id="now"></span>
-</nav>
+<!-- Keeps the player clear of the home indicator. -->
+<div id="bar"></div>
 
-<!-- Moved into Webamp's root at startup and framed as its generic windows, so
-     the skin in use draws them (see "skin windows" in app.js). -->
-<section id="library" hidden>
-  <div class="actions">
-    <button id="add" type="button">Add MP3s</button>
-    <button id="skin" type="button">Load skin</button>
-    <button id="edit" type="button">Edit</button>
-  </div>
-  <p id="status" role="status"></p>
-  <ul id="albums"></ul>
-  <footer>
-    <span id="usage"></span>
-    <button id="skin-reset" type="button">Default skin</button>
-    <button id="out-mode" type="button"></button>
-  </footer>
-</section>
-
+<!-- Moved into Webamp's root at startup and framed as one of its generic
+     windows, so the skin in use draws it (see "skin windows" in app.js). -->
 <section id="dialog" hidden>
   <div class="box">
     <div id="dialog-body"></div>
@@ -48,6 +31,6 @@
 <!-- No accept filter: iOS greys out extensions it has no type for, and .wsz is one. -->
 <input id="pick-skin" type="file" hidden>
 
-<script type="module" src="app.js?v=3"></script>
+<script type="module" src="app.js?v=4"></script>
 </body>
 </html>
