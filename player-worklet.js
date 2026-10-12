@@ -68,7 +68,7 @@ class GaplessPlayer extends AudioWorkletProcessor {
         this.queue.shift();
         if (!this.ended) {
           this.ended = true;
-          this.port.postMessage({ type: "ended", gen: this.gen });
+          this.port.postMessage({ type: "ended", gen: this.gen, played: this.consumed + o });
         }
         break;
       }

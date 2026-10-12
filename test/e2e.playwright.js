@@ -7,6 +7,7 @@ async (page) => {
   await page.goto(base);
   await page.evaluate(async () => {
     for (const reg of await navigator.serviceWorker.getRegistrations()) await reg.unregister();
+    for (const name of await caches.keys()) await caches.delete(name); // or the worker serves the last build
     indexedDB.deleteDatabase("gapless-amp");
     const root = await navigator.storage.getDirectory();
     for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
@@ -33,6 +34,8 @@ async (page) => {
     tap.onaudioprocess = e => window.rec.push(new Float32Array(e.inputBuffer.getChannelData(0)));
     m._input.connect(tap);
     tap.connect(ctx.destination);
+    const onWorklet = m._node.port.onmessage;
+    m._node.port.onmessage = e => { if (e.data.type === "ended") window.played = e.data.played; onWorklet(e); };
     const load = m.loadFromUrl.bind(m);
     m.loadFromUrl = (url, auto) => { window.trail.push(m._adopting === url ? "joined" : "started"); return load(url, auto); };
   });
@@ -63,14 +66,16 @@ async (page) => {
     while (last > 0 && Math.abs(pcm[last]) < 1e-4) last--;
     return {
       trail: window.trail, status: amp.webamp.getMediaStatus(),
-      samplesPlayed: last - off + 1, samplesInSource: raw.length,
-      errMid: err(50000, 100000), errJoin1: err(148000, 152000), errJoin2: err(331000, 335000), errWhole: err(0, raw.length - 100),
+      // Exact, from the worklet itself. The recording tap below runs on the main
+      // thread and can drop a buffer when the page is busy, so it only judges the joins.
+      samplesPlayed: window.played, samplesInSource: raw.length, samplesRecorded: last - off + 1,
+      errMid: err(50000, 100000), errJoin1: err(148000, 152000), errJoin2: err(331000, 335000),
     };
   });
 
-  const ok = audio.trail.join() === "started,joined,joined" && audio.errWhole < 0.03 &&
-    // The codec rings on for a few hundred samples after the last track; one
-    // ungapped join would add over a thousand.
-    Math.abs(audio.samplesPlayed - audio.samplesInSource) < 512 && audio.status === "STOPPED" && midway.track != null;
+  // ffmpeg's LAME wrapper leaves 20 samples of silence after the last track.
+  const ok = audio.trail.join() === "started,joined,joined" &&
+    audio.errJoin1 < 0.03 && audio.errJoin2 < 0.03 && audio.errMid < 0.01 &&
+    audio.samplesPlayed - audio.samplesInSource === 20 && audio.status === "STOPPED" && midway.track != null;
   return { result: ok ? "PASS" : "FAIL", imported, midway, audio };
 }

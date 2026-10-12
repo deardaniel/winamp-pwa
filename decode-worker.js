@@ -45,7 +45,9 @@ self.onmessage = ({ data: m }) => {
     pump();
   } else if (m.cmd === "queue") {
     if (m.gen !== gen) return;
-    queue = m.queue;
+    // m.queue is what follows the track now *playing* (seq m.after), but decoding
+    // runs ahead: skip the ones already decoded or they would play twice.
+    queue = m.queue.slice(Math.max(0, seq - 1 - m.after));
     // Webamp adds an album's tracks one at a time, so a short first track can be
     // fully decoded before the second is even known. Pick the stream back up;
     // the worklet discards the end marker if playback hasn't reached it yet.
@@ -68,7 +70,7 @@ async function open(track) {
     await decoder.ready;
   }
   // Queued tracks carry no start position; only the first of a generation can be a seek.
-  return { ...track, at: track.at || 0, offset: 0, seq: seq++, first: true, skip: -1, base: 0, rs: null };
+  return { ...track, at: track.at || 0, offset: 0, first: true, skip: -1, base: 0, rs: null };
 }
 
 // Linear resampling for the odd file that doesn't match the context's rate.
@@ -106,6 +108,7 @@ async function pump() {
           port.postMessage({ gen: g, end: true });
           break;
         }
+        next.seq = seq++; // before the await, so a queue update sees it as taken
         const opened = await open(next);
         if (g !== gen) continue;
         current = opened;

@@ -130,7 +130,7 @@ export class GaplessMedia {
   /** Call when the playlist, shuffle or repeat changes, so the worker joins the right track next. */
   refreshQueue() {
     if (this._worker && this._status !== "STOPPED")
-      this._worker.postMessage({ cmd: "queue", gen: this._gen, queue: this._queue() });
+      this._worker.postMessage({ cmd: "queue", gen: this._gen, after: this._seq, queue: this._queue() });
   }
 
   _start(at, playing) {
@@ -177,8 +177,10 @@ export class GaplessMedia {
     } else if (m.type === "ended") {
       this._status = "STOPPED";
       this._frame = 0;
-      this._sleep();
       this._emit("ended");
+      // The last samples have left the worklet but not yet the speaker; suspending
+      // right away would clip the album's final fraction of a second.
+      setTimeout(() => { if (this._status === "STOPPED") this._sleep(); }, 750);
     }
   }
 
