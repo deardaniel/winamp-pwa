@@ -1,0 +1,80 @@
+:root {
+  --lcd: #00e000;
+  --dim: #0a7a0a;
+  --ink: #c8d0e0;
+  --panel: #1b1b2c;
+  --edge: #3a3a55;
+  --bar-h: 44px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #000; color: var(--ink);
+  font: 14px/1.3 -apple-system, "Segoe UI", Tahoma, sans-serif;
+  overscroll-behavior: none; touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
+}
+
+/* Webamp positions its windows itself; the app scales the lot to the screen. */
+#stage { position: fixed; inset: env(safe-area-inset-top) 0 0 0; }
+#webamp { position: absolute; top: env(safe-area-inset-top); left: 0; transform-origin: 0 0; }
+
+button {
+  font: inherit; color: var(--ink);
+  background: linear-gradient(#3c3c5a, #25253a);
+  border: 1px solid; border-color: #6a6a8c #15151f #15151f #6a6a8c;
+  padding: 8px 14px; border-radius: 2px;
+}
+button:active { border-color: #15151f #6a6a8c #6a6a8c #15151f; background: #25253a; }
+
+#bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  height: calc(var(--bar-h) + env(safe-area-inset-bottom));
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border-top: 1px solid var(--edge);
+}
+#bar button { padding: 5px 14px; }
+#now { color: var(--lcd); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+#library {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  background: #000;
+}
+#library[hidden] { display: none; }
+#library header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 4px 4px 12px;
+  background: linear-gradient(90deg, #0a0a5a, #1c4fb0 50%, #0a0a5a);
+}
+#library h1 { margin: 0; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
+#close-library { font-size: 20px; line-height: 1; padding: 4px 12px; }
+.actions { display: flex; gap: 8px; padding: 8px; background: var(--panel); border-bottom: 1px solid var(--edge); }
+.actions button { flex: 1; }
+#status { margin: 0; padding: 6px 12px; min-height: 0; color: var(--lcd);
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+#status:empty { display: none; }
+
+#albums { flex: 1; margin: 0; padding: 0; list-style: none; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#albums li { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #14141f; }
+#albums li:active { background: #0a0a5a; }
+#albums img, #albums .nocover { width: 56px; height: 56px; flex: none; object-fit: cover; background: #14141f; border: 1px solid var(--edge); }
+#albums .nocover { display: grid; place-items: center; color: var(--dim); font-size: 22px; }
+#albums .meta { flex: 1; min-width: 0; }
+#albums .title { color: var(--lcd); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#albums .sub { color: #8a93a8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#albums .del { display: none; background: linear-gradient(#7a2a2a, #4a1515); }
+#library.editing #albums .del { display: block; }
+#albums .empty { display: block; padding: 32px 20px; color: #8a93a8; text-align: center; border: 0; line-height: 1.6; }
+
+#library footer {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  background: var(--panel); border-top: 1px solid var(--edge); font-size: 12px;
+}
+#usage { flex: 1; color: #8a93a8; }
+#library footer button { padding: 5px 8px; font-size: 12px; }
