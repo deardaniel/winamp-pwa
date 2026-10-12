@@ -39,6 +39,10 @@ const savedSkin = await store.getSetting("skin").catch(() => null);
 const webamp = new Webamp({
   __customMediaClass: GaplessMedia,
   enableMediaSession: true,
+  // The playlist's ADD URL / LOAD LIST / SAVE LIST buttons (see "playlist buttons" below).
+  handleAddUrlEvent: () => addUrl(),
+  handleLoadListEvent: () => loadList(),
+  handleSaveListEvent: tracks => saveList(tracks),
   ...(savedSkin ? { initialSkin: { url: URL.createObjectURL(new Blob([savedSkin])) } } : {}),
   windowLayout: {
     main: { position: { top: 0, left: 0 } },
@@ -91,8 +95,19 @@ let seen = {};
 webamp.store.subscribe(() => {
   const { playlist, media: m } = webamp.store.getState();
   if (seen.order === playlist.trackOrder && seen.shuffle === m.shuffle && seen.repeat === m.repeat) return;
+  const orderChanged = seen.order !== playlist.trackOrder;
   seen = { order: playlist.trackOrder, shuffle: m.shuffle, repeat: m.repeat };
   media.refreshQueue();
+  if (orderChanged) sweep();
+  // Tracks added to an idle player have no "current" one, and Play then does
+  // nothing at all. Cue the first so Play has something to start.
+  // Deferred: when an album is opened to play, Webamp picks its own current
+  // track in the same breath as adding it.
+  setTimeout(() => {
+    const now = webamp.store.getState();
+    if (now.media.status === "STOPPED" && now.playlist.currentTrack == null && now.playlist.trackOrder.length)
+      webamp.store.dispatch({ type: "BUFFER_TRACK", id: now.playlist.trackOrder[0] });
+  }, 0);
 });
 
 // Webamp reports every file as 128 kbps / 44 kHz. Correct it once it has.
@@ -140,7 +155,6 @@ webamp.onTrackDidChange(track => {
 
 let albums = [];
 const coverUrls = new Map();
-let playlistUrls = [];
 
 async function coverUrl(id) {
   if (!id) return null;
@@ -196,39 +210,52 @@ async function refresh() {
     : "";
 }
 
-async function toWebampTracks(album) {
-  const art = await coverUrl(album.coverId);
+// Builds Webamp tracks for library records. Each gets a blob URL onto its file
+// in storage; `sources` is how the audio engine (and the buttons below) get
+// from that URL back to the file and its record.
+const building = new Set();
+async function webampTracks(records) {
   const out = [];
-  for (const t of album.tracks) {
+  for (const t of records) {
     const file = await store.audioFile(t.id);
     const url = URL.createObjectURL(file);
-    sources.set(url, { file, duration: t.duration, sampleRate: t.sampleRate, channels: t.channels, bitrate: t.bitrate });
+    building.add(url);
+    sources.set(url, { file, rec: t, duration: t.duration, sampleRate: t.sampleRate, channels: t.channels, bitrate: t.bitrate });
+    const art = await coverUrl(t.coverId);
     out.push({
       url,
       duration: t.duration,
       metaData: {
-        artist: t.artist || album.artist,
+        artist: t.artist || t.albumArtist || "Unknown Artist",
         title: t.title || t.fileName.replace(/\.mp3$/i, ""),
-        album: album.title,
+        album: t.album || "Unknown Album",
         ...(art ? { albumArtUrl: art } : {}),
       },
     });
   }
+  // Released once the playlist has had a chance to take them (see sweep()).
+  setTimeout(() => { for (const t of out) building.delete(t.url); sweep(); }, 2000);
   return out;
 }
 
-function retire(urls) {
-  for (const url of urls) { sources.delete(url); URL.revokeObjectURL(url); }
+const playlistUrlSet = () => {
+  const state = webamp.store.getState();
+  return new Set(state.playlist.trackOrder.map(id => urlOf(state, id)));
+};
+
+// Blob URLs pin their file open, so drop the ones no playlist entry uses any more.
+function sweep() {
+  const live = playlistUrlSet();
+  for (const [url, entry] of sources)
+    if (entry.rec && !live.has(url) && !building.has(url)) { sources.delete(url); URL.revokeObjectURL(url); }
 }
 
-async function openAlbum(album, autoPlay) {
-  const tracks = await toWebampTracks(album);
-  const old = playlistUrls;
-  playlistUrls = tracks.map(t => t.url);
-  if (autoPlay) webamp.setTracksToPlay(tracks);
-  else webamp.appendTracks(tracks);
-  retire(old);
-  store.setSetting("lastAlbum", album.key).catch(() => {});
+async function openAlbum(album, how) {
+  const tracks = await webampTracks(album.tracks);
+  if (how === "play") {
+    webamp.setTracksToPlay(tracks);
+    store.setSetting("lastAlbum", album.key).catch(() => {});
+  } else webamp.appendTracks(tracks);
 }
 
 async function deleteAlbum(album) {
@@ -263,12 +290,14 @@ async function importFiles(files) {
   const existing = await store.allTracks();
   const have = new Set(existing.map(t => `${t.fileName}/${t.size}`));
   const covers = new Set(existing.map(t => t.coverId).filter(Boolean));
+  const byFile = new Map(existing.map(t => [`${t.fileName}/${t.size}`, t]));
+  const picked = [];
   let added = 0, skipped = 0, failed = 0;
   await store.persist();
 
   for (const [i, file] of files.entries()) {
     status.textContent = `Importing ${i + 1} of ${files.length}: ${file.name}`;
-    if (have.has(`${file.name}/${file.size}`)) { skipped++; continue; }
+    if (have.has(`${file.name}/${file.size}`)) { skipped++; picked.push(byFile.get(`${file.name}/${file.size}`)); continue; }
     try {
       const tags = await readTags(file);
       if (!tags.duration) throw new Error("not an MP3");
@@ -285,7 +314,10 @@ async function importFiles(files) {
         }
       }
       const { picture, ...rest } = tags;
-      await store.putTrack({ id, fileName: file.name, size: file.size, coverId, added: Date.now(), ...rest });
+      const rec = { id, fileName: file.name, size: file.size, coverId, added: Date.now(), ...rest };
+      await store.putTrack(rec);
+      byFile.set(`${file.name}/${file.size}`, rec);
+      picked.push(rec);
       have.add(`${file.name}/${file.size}`);
       added++;
     } catch (err) {
@@ -299,19 +331,47 @@ async function importFiles(files) {
     failed && `${failed} could not be read`,
   ].filter(Boolean).join(", ") + ".";
   await refresh();
+  return picked;
 }
 
 /* ---- controls ---- */
 
 const sheet = $("library");
-$("open-library").onclick = () => { sheet.hidden = false; refresh(); };
-$("close-library").onclick = () => { sheet.hidden = true; sheet.classList.remove("editing"); };
+// The library opens either to play an album or, from the playlist's ADD DIR, to queue one.
+let sheetAdds = false;
+function openLibrary(adds = false) {
+  sheetAdds = adds;
+  $("library-title").textContent = adds ? "Add album to playlist" : "Media Library";
+  sheet.hidden = false;
+  refresh();
+}
+function closeLibrary() {
+  sheet.hidden = true;
+  sheet.classList.remove("editing");
+}
+$("open-library").onclick = () => openLibrary();
+$("close-library").onclick = closeLibrary;
 $("edit").onclick = () => sheet.classList.toggle("editing");
-$("add").onclick = () => $("pick-mp3").click();
+
+// Picked files always join the library; from the playlist's ADD FILE they are queued too.
+let pickedGoTo = "library";
+function pickFiles(goTo) {
+  pickedGoTo = goTo;
+  $("pick-mp3").click();
+}
+$("add").onclick = () => pickFiles("library");
 $("pick-mp3").onchange = async e => {
   const files = [...e.target.files];
   e.target.value = "";
-  if (files.length) await importFiles(files);
+  if (!files.length) return;
+  const queue = pickedGoTo === "playlist";
+  if (queue) openLibrary(); // somewhere to show import progress
+  const picked = await importFiles(files);
+  if (queue && picked.length) {
+    // Tag order, not the order the picker happened to return them in.
+    webamp.appendTracks(await webampTracks(groupAlbums(picked).flatMap(a => a.tracks)));
+    closeLibrary();
+  }
 };
 
 $("albums").onclick = async e => {
@@ -326,9 +386,10 @@ $("albums").onclick = async e => {
     return;
   }
   if (sheet.classList.contains("editing")) return;
-  media.unlock(); // still inside the tap; the awaits below would lose it
-  sheet.hidden = true;
-  await openAlbum(album, true);
+  const adds = sheetAdds;
+  if (!adds) media.unlock(); // still inside the tap; the awaits below would lose it
+  closeLibrary();
+  await openAlbum(album, adds ? "append" : "play");
 };
 
 $("skin").onclick = () => $("pick-skin").click();
@@ -345,7 +406,7 @@ $("pick-skin").onchange = async e => {
   await store.setSetting("skin", data);
   webamp.setSkinFromUrl(URL.createObjectURL(new Blob([data])));
   $("status").textContent = `Skin: ${file.name}`;
-  sheet.hidden = true;
+  closeLibrary();
 };
 $("skin-reset").onclick = async () => {
   await store.deleteSetting("skin");
@@ -359,13 +420,178 @@ outButton.onclick = () => {
   location.reload();
 };
 
+/* ---- playlist buttons ---- */
+
+// Webamp ships several of the playlist editor's buttons as "Not supported", and
+// its file buttons open a picker whose files would bypass the library. Those
+// taps are caught here, before Webamp's own handlers see them.
+
+function dialog(title, build) {
+  return new Promise(resolve => {
+    const box = $("dialog"), body = $("dialog-body");
+    $("dialog-title").textContent = title;
+    body.textContent = "";
+    const done = value => { box.hidden = true; resolve(value); };
+    build(body, done);
+    $("dialog-close").onclick = () => done(null);
+    box.hidden = false;
+  });
+}
+const notice = (title, text) => dialog(title, body => {
+  const p = document.createElement("p");
+  p.textContent = text;
+  body.append(p);
+});
+
+const currentState = () => webamp.store.getState();
+const recOf = (state, id) => (sources.get(urlOf(state, id)) || {}).rec;
+
+// ADD URL
+async function addUrl() {
+  const url = (prompt("Address of an MP3 to add:") || "").trim();
+  if (!url) return null;
+  try { new URL(url); } catch { await notice("Add URL", "That is not a valid address."); return null; }
+  const name = decodeURIComponent(new URL(url).pathname.split("/").pop() || "") || url;
+  return [{ url, defaultName: name }];
+}
+
+// LIST OPTS: saved playlists are lists of library track ids, kept on the device.
+async function saveList(tracks) {
+  const ids = tracks.map(t => (sources.get(t.url) || {}).rec).filter(Boolean).map(r => r.id);
+  if (!ids.length) { await notice("Save list", "There is nothing from the library in the playlist to save."); return null; }
+  const name = (prompt("Save playlist as:") || "").trim();
+  if (!name) return null;
+  const lists = (await store.getSetting("lists")) || {};
+  lists[name] = ids;
+  await store.setSetting("lists", lists);
+  const left = tracks.length - ids.length;
+  await notice("Save list", `Saved "${name}" (${ids.length} tracks)${left ? `; ${left} not from the library were left out` : ""}.`);
+  return null;
+}
+
+async function loadList() {
+  const lists = (await store.getSetting("lists")) || {};
+  const names = Object.keys(lists).sort((a, b) => a.localeCompare(b));
+  if (!names.length) { await notice("Load list", "No saved playlists yet. Use Save List to keep the current one."); return null; }
+  const name = await dialog("Load list", (body, done) => {
+    const ul = document.createElement("ul");
+    for (const n of names) {
+      const li = document.createElement("li");
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "pick";
+      pick.textContent = `${n} (${lists[n].length})`;
+      pick.onclick = () => done(n);
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "del";
+      del.textContent = "Delete";
+      del.onclick = async () => {
+        if (!confirm(`Delete the saved playlist "${n}"?`)) return;
+        delete lists[n];
+        await store.setSetting("lists", lists);
+        li.remove();
+        if (!ul.children.length) done(null);
+      };
+      li.append(pick, del);
+      ul.append(li);
+    }
+    body.append(ul);
+  });
+  if (!name) return null;
+  const byId = new Map((await store.allTracks()).map(t => [t.id, t]));
+  const records = lists[name].map(id => byId.get(id)).filter(Boolean);
+  if (!records.length) { await notice("Load list", "None of that playlist's tracks are on this device any more."); return null; }
+  return webampTracks(records);
+}
+
+// MISC > FILE INFO, for the selected track (or the current one).
+function fileInfo() {
+  const state = currentState();
+  const id = state.playlist.selectedTracks[0] ?? state.playlist.currentTrack;
+  if (id == null) return notice("File info", "Select a track in the playlist first.");
+  const rec = recOf(state, id);
+  const t = state.tracks[id] || {};
+  if (!rec) return notice("File info", `${t.title || t.defaultName || "This track"} is not from the library, so only its address is known:\n${t.url || ""}`);
+  const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+  const rows = [
+    ["Title", rec.title], ["Artist", rec.artist], ["Album", rec.album], ["Album artist", rec.albumArtist],
+    ["Track", rec.track && (rec.disc ? `${rec.track} (disc ${rec.disc})` : rec.track)], ["Year", rec.year],
+    ["Length", mmss(rec.duration)],
+    ["Format", `MP3, ${rec.bitrate} kbps, ${(rec.sampleRate / 1000).toFixed(1)} kHz, ${rec.channels === 1 ? "mono" : "stereo"}`],
+    ["Gapless info", rec.gapless ? "Yes (LAME header)" : "No - a small gap is possible"],
+    ["File", rec.fileName], ["Size", `${(rec.size / 1048576).toFixed(1)} MB`],
+  ].filter(([, v]) => v != null && v !== "");
+  return dialog("File info", body => {
+    const dl = document.createElement("dl");
+    for (const [k, v] of rows) {
+      const dt = document.createElement("dt"), dd = document.createElement("dd");
+      dt.textContent = k;
+      dd.textContent = v;
+      dl.append(dt, dd);
+    }
+    body.append(dl);
+  });
+}
+
+// REM > REM MISC: Winamp's "remove dead files", plus repeated entries.
+function removeMisc() {
+  const state = currentState();
+  const seenTracks = new Set(), ids = [];
+  for (const id of state.playlist.trackOrder) {
+    const url = urlOf(state, id);
+    const dead = !url || (url.startsWith("blob:") && !sources.has(url));
+    // The same library track queued twice has two different blob URLs.
+    const rec = recOf(state, id), key = rec ? rec.id : url;
+    if (dead || seenTracks.has(key)) ids.push(id);
+    seenTracks.add(key);
+  }
+  if (ids.length) webamp.store.dispatch({ type: "REMOVE_TRACKS", ids });
+  return notice("Remove misc", ids.length
+    ? `Removed ${ids.length} dead or duplicate entr${ids.length === 1 ? "y" : "ies"}.`
+    : "No dead or duplicate entries in the playlist.");
+}
+
+// REM > CROP: Webamp's own throws (it treats the selection as a Set), so do it here.
+function crop() {
+  const { trackOrder, selectedTracks } = currentState().playlist;
+  if (!selectedTracks.length) return;
+  const keep = new Set(selectedTracks);
+  webamp.store.dispatch({ type: "REMOVE_TRACKS", ids: trackOrder.filter(id => !keep.has(id)) });
+}
+
+// Play on an empty playlist would open Webamp's own file picker; offer the library instead.
+function playWhenEmpty() {
+  if (currentState().playlist.trackOrder.length) return false; // not ours: let Webamp play
+  openLibrary();
+}
+
+const OVERRIDES = [
+  ["#playlist-add-menu .add-file", () => pickFiles("playlist")],
+  ["#playlist-add-menu .add-dir", () => openLibrary(true)],
+  ["#playlist-remove-menu .remove-misc", removeMisc],
+  ["#playlist-misc-menu .file-info", fileInfo],
+  ["#playlist-remove-menu .crop", crop],
+  ["#eject, .playlist-eject-button", () => openLibrary()],
+  ["#play, .playlist-play-button", playWhenEmpty],
+];
+document.addEventListener("click", e => {
+  if (!(e.target instanceof Element) || e.target.closest("#dialog")) return;
+  const hit = OVERRIDES.find(([selector]) => e.target.closest(selector));
+  if (!hit || hit[1]() === false) return;
+  e.stopPropagation(); // Webamp listens further down, on its own root
+  e.preventDefault();
+  // Webamp closes an open menu when it sees a click elsewhere; give it one.
+  setTimeout(() => document.body.click(), 0);
+}, true);
+
 /* ---- startup ---- */
 
 await refresh();
 const last = await store.getSetting("lastAlbum").catch(() => null);
 const resume = albums.find(a => a.key === last);
-if (resume) await openAlbum(resume, false);
-else if (!albums.length) sheet.hidden = false;
+if (resume) await openAlbum(resume, "append");
+else if (!albums.length) openLibrary();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
