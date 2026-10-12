@@ -14,6 +14,7 @@ const ROW_H = 29;        // the playlist grows in steps of this
 // 275px-wide column and the column is zoomed until it spans the display.
 function layout() {
   const scale = Math.min(window.innerWidth / WIDTH, 3);
+  document.documentElement.style.setProperty("--scale", scale); // the bar is drawn in skin pixels too
   const bar = $("bar").getBoundingClientRect().height;
   const safeTop = parseFloat(getComputedStyle($("stage")).paddingTop) || 0; // the notch
   const room = (window.innerHeight - safeTop - bar) / scale - WINDOW_H * 3;
@@ -54,6 +55,67 @@ const media = webamp.media;
 
 await webamp.renderWhenReady($("stage"));
 const root = document.getElementById("webamp");
+
+/* ---- skin windows ---- */
+
+// The library and the dialogs are Webamp "generic" windows: the markup its own
+// extra windows use, placed inside its root. So whichever skin is loaded draws
+// their frame and title lettering, at the same zoom as the player.
+function genWindow(el, name) {
+  const div = (cls, ...kids) => {
+    const d = document.createElement("div");
+    d.className = cls;
+    d.append(...kids);
+    return d;
+  };
+  const title = div("gen-top-title");
+  title.id = `${name}-title`;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.id = `close-${name}`;
+  close.className = "gen-close";
+  close.setAttribute("aria-label", "Close");
+  const centre = div("gen-middle-center", ...el.children);
+  el.classList.add("gen-window", "selected");
+  el.append(
+    div("gen-top", div("gen-top-left"), div("gen-top-left-fill"), div("gen-top-left-end"), title,
+      div("gen-top-right-end"), div("gen-top-right-fill"), div("gen-top-right", close)),
+    div("gen-middle", div("gen-middle-left", div("gen-middle-left-bottom")), centre,
+      div("gen-middle-right", div("gen-middle-right-bottom"))),
+    div("gen-bottom", div("gen-bottom-left"), div("gen-bottom-right")));
+}
+genWindow($("library"), "library");
+genWindow($("dialog").firstElementChild, "dialog");
+root.append($("library"), $("dialog"));
+
+// Title bars are lettered from the skin's bitmap font, which only has A-Z.
+function setTitle(el, text) {
+  el.setAttribute("aria-label", text);
+  el.textContent = "";
+  for (const ch of text.toLowerCase()) {
+    if (!/[a-z ]/.test(ch)) continue;
+    const letter = document.createElement("div");
+    letter.className = `gen-text-letter gen-text-${ch === " " ? "space" : ch}`;
+    el.append(letter);
+  }
+}
+
+// The bar would sit on top of a window in Webamp's root, so it steps aside.
+const sheetOpen = () => document.body.classList.toggle("sheet-open", !$("library").hidden || !$("dialog").hidden);
+
+// Lists inside those windows take the playlist editor's colours from the skin.
+let playlistStyle;
+function paint() {
+  const style = webamp.store.getState().display.skinPlaylistStyle;
+  if (style === playlistStyle) return;
+  playlistStyle = style;
+  for (const [name, key] of [["normal", "normal"], ["current", "current"], ["bg", "normalbg"], ["selbg", "selectedbg"], ["font", "font"]]) {
+    if (style && style[key]) root.style.setProperty(`--pl-${name}`, style[key]);
+    else root.style.removeProperty(`--pl-${name}`);
+  }
+}
+paint();
+webamp.store.subscribe(paint);
 
 // The playlist only resizes in whole 29px steps, which leaves a strip of dead
 // space above the bar. Its side borders tile, so pin its height to the exact
@@ -341,13 +403,15 @@ const sheet = $("library");
 let sheetAdds = false;
 function openLibrary(adds = false) {
   sheetAdds = adds;
-  $("library-title").textContent = adds ? "Add album to playlist" : "Media Library";
+  setTitle($("library-title"), adds ? "Add album to playlist" : "Media Library");
   sheet.hidden = false;
+  sheetOpen();
   refresh();
 }
 function closeLibrary() {
   sheet.hidden = true;
   sheet.classList.remove("editing");
+  sheetOpen();
 }
 $("open-library").onclick = () => openLibrary();
 $("close-library").onclick = closeLibrary;
@@ -429,12 +493,13 @@ outButton.onclick = () => {
 function dialog(title, build) {
   return new Promise(resolve => {
     const box = $("dialog"), body = $("dialog-body");
-    $("dialog-title").textContent = title;
+    setTitle($("dialog-title"), title);
     body.textContent = "";
-    const done = value => { box.hidden = true; resolve(value); };
+    const done = value => { box.hidden = true; sheetOpen(); resolve(value); };
     build(body, done);
-    $("dialog-close").onclick = () => done(null);
+    $("close-dialog").onclick = () => done(null);
     box.hidden = false;
+    sheetOpen();
   });
 }
 const notice = (title, text) => dialog(title, body => {

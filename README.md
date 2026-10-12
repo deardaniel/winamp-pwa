@@ -5,6 +5,9 @@ music on the device, and plays albums with no gap between tracks.
 
 - **Skins** — [Webamp](https://github.com/captbaritone/webamp) draws the UI. The
   default is the original Winamp 2.91 base skin; any classic `.wsz` can be loaded.
+  The library and the dialogs are Webamp "generic" windows placed inside its
+  root, so the loaded skin draws their frames too; the bar and buttons copy the
+  base skin's colours. `icons/make.py` builds the app icon from that skin.
 - **Gapless** — Webamp's own audio is replaced (`media.js`). A worker decodes
   MP3 with mpg123 (WASM), which trims each file's encoder delay and padding from
   its LAME header, and streams PCM to an AudioWorklet. Consecutive tracks are one
