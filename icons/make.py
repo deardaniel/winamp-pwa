@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Builds the app icons out of the default skin's own pixels.
 
-The icon is the bolt badge from the main window's corner, alone on the
-window's body colour, lifted from the sprites Webamp ships and enlarged
+The icon is the bolt badge from the main window's corner, alone on a
+brightened version of the window's body colour, lifted from the sprites Webamp ships and enlarged
 without smoothing.
 
     python3 icons/make.py        # needs Pillow; rewrites icons/*.png
 """
 import base64, io, re
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 HERE = Path(__file__).resolve().parent
 BUNDLE = HERE.parent / "vendor" / "webamp.bundle.min.mjs"
 GRID = 32            # the icon, in skin pixels: 16x at 512, 6x at 192
+BACK = (40, 72, 150) # a brighter take on the body's blue: the real one is murky as a home-screen icon
 
 
 def sprite(src, selector):
@@ -36,13 +37,17 @@ def bolt_badge(main):
         seen.add((x, y))
         px[x, y] = (0, 0, 0, 0)
         todo += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
-    return box.crop(box.getbbox())
+    box = box.crop(box.getbbox())
+    # The skin's shading is muted for a 275px window; lift it so it glows at icon size.
+    rgb = ImageEnhance.Color(ImageEnhance.Brightness(box.convert("RGB")).enhance(1.4)).enhance(1.6)
+    rgb.putalpha(box.getchannel("A"))
+    return rgb
 
 
 def icon(main, bolt, px, grid=GRID):
     """The bolt badge alone on the skin's body colour. Full bleed, so
     iOS's corner mask and Android's maskable crop only ever cut into plain skin."""
-    art = Image.new("RGB", (grid, grid), main.getpixel((137, 60)))
+    art = Image.new("RGB", (grid, grid), BACK)
     art.paste(bolt, ((grid - bolt.width) // 2, (grid - bolt.height) // 2), bolt)
     scale = px / grid
     if scale == int(scale):
