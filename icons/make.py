@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Builds the app icons out of the default skin's own pixels.
 
-The icon is a miniature Winamp window: the base skin's title bar, its body
-bevel, and the bolt badge from the main window's corner, all lifted from the
-sprites Webamp ships and enlarged without smoothing.
+The icon is the bolt badge from the main window's corner, alone on the
+window's body colour, lifted from the sprites Webamp ships and enlarged
+without smoothing.
 
     python3 icons/make.py        # needs Pillow; rewrites icons/*.png
 """
@@ -13,8 +13,7 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 BUNDLE = HERE.parent / "vendor" / "webamp.bundle.min.mjs"
-GRID = 64            # the icon, in skin pixels
-BAR = 14             # title bar height
+GRID = 32            # the icon, in skin pixels: 16x at 512, 6x at 192
 
 
 def sprite(src, selector):
@@ -40,35 +39,11 @@ def bolt_badge(main):
     return box.crop(box.getbbox())
 
 
-def window(main, bar, grid=GRID, inset=0):
-    """A grid-sized Winamp window: both ends of the title bar over an empty body."""
-    size = grid - 2 * inset
-    right = 37 if size >= 60 else 31   # the three buttons, plus the end of the stripes if they fit
-    win = Image.new("RGB", (size, size))
-    win.paste(bar.crop((0, 0, size - right, BAR)), (0, 0))
-    win.paste(bar.crop((275 - right, 0, 275, BAR)), (size - right, 0))
-    # The body: a clean stretch of the main window (right of the kHz readout),
-    # framed with the window's own edge columns/rows.
-    body_h = size - BAR
-    patch = main.crop((195, 38, 265, 54)).resize((size, body_h), Image.BILINEAR)
-    win.paste(patch, (0, BAR))
-    win.paste(main.crop((0, 30, 3, 31)).resize((3, body_h)), (0, BAR))
-    win.paste(main.crop((272, 30, 275, 31)).resize((3, body_h)), (size - 3, BAR))
-    win.paste(main.crop((40, 113, 41, 116)).resize((size, 3)), (0, size - 3))
-    win.paste(main.crop((0, 113, 3, 116)), (0, size - 3))
-    win.paste(main.crop((272, 113, 275, 116)), (size - 3, size - 3))
-    return win
-
-
-def icon(main, bar, bolt, px, grid=GRID, inset=0, bolt_scale=2):
-    # Full bleed in the body colour, so iOS's corner mask and Android's
-    # maskable crop only ever cut into plain skin.
+def icon(main, bolt, px, grid=GRID):
+    """The bolt badge alone on the skin's body colour. Full bleed, so
+    iOS's corner mask and Android's maskable crop only ever cut into plain skin."""
     art = Image.new("RGB", (grid, grid), main.getpixel((137, 60)))
-    win = window(main, bar, grid, inset)
-    art.paste(win, (inset, inset))
-    big = bolt.resize((bolt.width * bolt_scale, bolt.height * bolt_scale), Image.NEAREST)
-    body_mid = inset + BAR + (win.height - BAR - 3) // 2
-    art.paste(big, ((grid - big.width) // 2, body_mid - big.height // 2), big)
+    art.paste(bolt, ((grid - bolt.width) // 2, (grid - bolt.height) // 2), bolt)
     scale = px / grid
     if scale == int(scale):
         return art.resize((px, px), Image.NEAREST)
@@ -79,13 +54,13 @@ def icon(main, bar, bolt, px, grid=GRID, inset=0, bolt_scale=2):
 def main():
     src = BUNDLE.read_text(encoding="utf-8")
     body = sprite(src, "#webamp #main-window")
-    bar = sprite(src, "#webamp .selected #title-bar")
     bolt = bolt_badge(body)
-    icon(body, bar, bolt, 512).save(HERE / "icon-512.png")
-    icon(body, bar, bolt, 192).save(HERE / "icon-192.png")
-    icon(body, bar, bolt, 180).save(HERE / "apple-touch-icon.png")
-    # Maskable: launchers may crop to the middle 80%, so the window sits inside it.
-    icon(body, bar, bolt, 512, inset=7, bolt_scale=1).save(HERE / "icon-maskable-512.png")
+    icon(body, bolt, 512).save(HERE / "icon-512.png")
+    icon(body, bolt, 192).save(HERE / "icon-192.png")
+    icon(body, bolt, 180).save(HERE / "apple-touch-icon.png")
+    # Maskable: launchers may crop to a circle in the middle 80%, so the
+    # badge gets more room around it.
+    icon(body, bolt, 512, grid=GRID * 5 // 4).save(HERE / "icon-maskable-512.png")
 
 
 if __name__ == "__main__":
