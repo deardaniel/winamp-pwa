@@ -167,17 +167,24 @@ webamp.store.subscribe(() => {
   }, 0);
 });
 
-// Webamp reports every file as 128 kbps / 44 kHz. Correct it once it has.
+// Webamp labels every track that comes with metaData as 192 kbps / 44 kHz
+// stereo. Correct it once it has. The readout comes from the track, and only
+// SET_MEDIA_TAGS writes that (SET_MEDIA sets just the length), so the tags
+// already there go back in unchanged.
 media.on("fileLoaded", () => {
   const info = media.info();
-  const id = webamp.store.getState().playlist.currentTrack;
-  if (!info || id == null) return;
+  const state = webamp.store.getState();
+  const id = state.playlist.currentTrack;
+  const track = id != null && state.tracks[id];
+  if (!info || !track) return;
+  webamp.store.dispatch({ type: "SET_MEDIA", id, length: info.duration });
+  if (!info.bitrate) return;
   webamp.store.dispatch({
-    type: "SET_MEDIA", id,
-    kbps: String(info.bitrate || 128),
-    khz: String(Math.round((info.sampleRate || 44100) / 1000)),
-    channels: info.channels || 2,
-    length: info.duration,
+    type: "SET_MEDIA_TAGS", id,
+    title: track.title, artist: track.artist, album: track.album, albumArtUrl: track.albumArtUrl,
+    bitrate: info.bitrate * 1000,
+    sampleRate: info.sampleRate || 44100,
+    numberOfChannels: info.channels || 2,
   });
 });
 
