@@ -623,6 +623,51 @@ document.addEventListener("click", e => {
   setTimeout(() => document.body.click(), 0);
 }, true);
 
+/* ---- menus stay on screen ---- */
+
+// Webamp opens a menu down and to the right of the tap, and its submenus to the
+// right of their item. On a phone the EQ's PRESETS button is at the right edge,
+// so Load's list of presets opened off screen. Nudge each one back in.
+const EDGE = 4;
+function nudge(el) {
+  const r = el.getBoundingClientRect();
+  let dx = 0, dy = 0;
+  if (r.right > innerWidth - EDGE) dx = innerWidth - EDGE - r.right;
+  if (r.left + dx < EDGE) dx = EDGE - r.left;
+  if (r.bottom > innerHeight - EDGE) dy = innerHeight - EDGE - r.bottom;
+  if (r.top + dy < EDGE) dy = EDGE - r.top;
+  return { r, dx, dy };
+}
+
+function placeSubmenu(ul) {
+  Object.assign(ul.style, { left: "", right: "", top: "", marginLeft: "", marginRight: "" });
+  const { r, dy } = nudge(ul);
+  if (r.right > innerWidth - EDGE) {
+    // Open to the left of the item instead, mirroring Webamp's overlap.
+    Object.assign(ul.style, { left: "auto", right: "100%", marginLeft: "0", marginRight: "-3px" });
+  }
+  if (dy) ul.style.top = `${dy}px`;
+}
+
+new MutationObserver(records => {
+  for (const rec of records) for (const node of rec.addedNodes) {
+    if (!(node instanceof Element)) continue;
+    const menu = node.matches(".context-menu") ? node : node.querySelector?.("#webamp-context-menu .context-menu");
+    if (!menu) continue;
+    menu.style.transform = "";
+    const { dx, dy } = nudge(menu);
+    if (dx || dy) menu.style.transform = `translate(${dx}px, ${dy}px)`;
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
+for (const type of ["pointerover", "mouseover"]) {
+  document.addEventListener(type, e => {
+    const li = e.target instanceof Element && e.target.closest("#webamp-context-menu li.parent");
+    const ul = li && li.querySelector(":scope > ul");
+    if (ul) requestAnimationFrame(() => placeSubmenu(ul));
+  }, true);
+}
+
 /* ---- startup ---- */
 
 let last = await store.getSetting("playlist").catch(() => null);
