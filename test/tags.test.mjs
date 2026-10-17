@@ -17,6 +17,7 @@ test("ID3v2.3 tags, cover and exact gapless length", async () => {
   assert.equal(t.picture.mime, "image/jpeg");
   assert.deepEqual([...t.picture.data.subarray(0, 2)], [0xff, 0xd8]);
   assert.equal(t.sampleRate, 44100);
+  assert.equal(t.bitrate, 192); // CBR ("Info" header): the nominal rate, not an average
   assert.equal(t.gapless, true);
   assert.equal(Math.round(t.duration * 44100), 183332); // the sample count the decoder produces
 });

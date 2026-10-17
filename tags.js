@@ -176,7 +176,8 @@ function parseAudio(b, audioBytes) {
         info.gapless = true;
       }
       info.duration = samples / h.sampleRate;
-      if (info.duration > 0) info.bitrate = Math.round((audioBytes - o) * 8 / info.duration / 1000);
+      // "Info" is LAME's CBR marker: keep the nominal rate. "Xing" is VBR: average it.
+      if (magic === "Xing" && info.duration > 0) info.bitrate = Math.round((audioBytes - o) * 8 / info.duration / 1000);
     } else {
       info.duration = ((audioBytes - o) * 8) / (h.bitrate * 1000);
     }
