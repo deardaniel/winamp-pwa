@@ -714,3 +714,24 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 
 // For tests and poking around in the console.
 window.amp = { webamp, media, store, addFiles, collect, playlistEntries };
+
+// What the feedback form (kichi feedback.js) sends along with a screenshot.
+window.kichiFeedback = {
+  state() {
+    const s = currentState();
+    const id = s.playlist.currentTrack;
+    const t = id != null ? s.tracks[id] || {} : null;
+    const rec = id != null ? recOf(s, id) : null;
+    const dialog = document.getElementById("dialog");
+    return {
+      status: s.media.status,
+      elapsed: Math.round(media.timeElapsed() * 10) / 10,
+      track: t && { title: t.title, artist: t.artist, album: t.album, kbps: t.kbps, khz: t.khz, duration: t.duration,
+        file: rec && { name: rec.fileName, bitrate: rec.bitrate, sampleRate: rec.sampleRate, gapless: rec.gapless } },
+      playlist: s.playlist.trackOrder.length,
+      selected: s.playlist.selectedTracks.length,
+      output: outputMode(),
+      dialog: dialog && !dialog.hidden && dialog.offsetParent ? dialog.innerText.slice(0, 500) : null,
+    };
+  },
+};
