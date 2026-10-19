@@ -15,6 +15,20 @@ html, body {
 #stage { position: fixed; left: 0; top: 0; padding-top: env(safe-area-inset-top); box-sizing: content-box; pointer-events: none; }
 #webamp { image-rendering: pixelated; }
 
+/* iOS 27 draws a blur under the status bar unless the element it finds 4px down at the
+   top centre is fixed or sticky, at least 90% of the width, over 10px tall and not
+   transparent; then it takes that element's background-color for the status bar and
+   leaves the blur off (WebKit's "fixed color extension"). This strip is sure to be the
+   one found: it is above everything, and as an empty element clipped to its text it
+   paints nothing. Toggled with display only: opacity or visibility would disqualify it.
+   Same fix as Money Stuff's. */
+#ios-blur-fix { display: none; }
+@media (display-mode: standalone) {
+  #ios-blur-fix { display: block; position: fixed; top: 0; left: 0; right: 0; height: 11px;
+                  z-index: 2147483647; pointer-events: none; background-color: #000;
+                  -webkit-background-clip: text; background-clip: text; }
+}
+
 /* The skin's raised button (PRESETS, ADD, REM...), with live lettering. */
 button {
   -webkit-appearance: none; appearance: none;
