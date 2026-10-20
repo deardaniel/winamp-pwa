@@ -1,0 +1,12 @@
+{
+  "_comment": "What the deployer copies to kichi from each commit (deploy.sh runs it; so does a change Claude ships). \"*.js\" is top-level only, \"dir/**\" everything under dir. A new file the app needs at runtime must be listed here in the same commit. Compose files, .env and data/ are never copied, whatever this says.",
+  "files": [
+    "*.js",
+    "*.html",
+    "*.css",
+    "serve.py",
+    "manifest.webmanifest",
+    "icons/*.png",
+    "vendor/*"
+  ]
+}
