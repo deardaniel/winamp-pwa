@@ -118,6 +118,7 @@ files are collected a few seconds after the playlist changes (`collect()` in
 | File | |
 |---|---|
 | `app.js` | Layout, the file cache, playlist persistence, the playlist buttons and dialogs |
+| `fit.js` | Where the windows go and how far they are zoomed, for any screen size: one column, or two on a wide screen (an iPhone Duo opened out). Re-run on every resize |
 | `media.js` | Webamp's audio backend, replaced |
 | `decode-worker.js` | MP3 → PCM, gapless, ahead of playback |
 | `player-worklet.js` | Plays the PCM stream |

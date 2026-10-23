@@ -11,12 +11,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <!-- iOS 27 status-bar blur: see #ios-blur-fix in style.css. -->
 <div id="ios-blur-fix" aria-hidden="true"></div>
 <main id="stage"></main>
+<div id="safe" aria-hidden="true"></div>
 
 <!-- Keeps the player clear of the home indicator. -->
 <div id="bar"></div>
@@ -33,7 +34,7 @@
 <!-- No accept filter: iOS greys out extensions it has no type for, and .wsz is one. -->
 <input id="pick-skin" type="file" hidden>
 
-<script type="module" src="app.js?v=7"></script>
+<script type="module" src="app.js?v=8"></script>
 <!-- Hidden feedback trigger, on Daniel's devices only: see ~/kichi-feedback. -->
 <script src="https://kichi.tailae45a.ts.net:8447/feedback.js" data-app="gapless-amp" async></script>
 </body>

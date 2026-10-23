@@ -11,6 +11,7 @@ const SHELL = [
   "./",
   "style.css",
   "app.js",
+  "fit.js",
   "media.js",
   "tags.js",
   "store.js",

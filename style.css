@@ -11,8 +11,12 @@ html, body {
 }
 
 /* Webamp positions its windows itself; the app zooms the lot to fit the screen.
-   #stage is only a measuring box (see placeStage); its padding reads the notch. */
-#stage { position: fixed; left: 0; top: 0; padding-top: env(safe-area-inset-top); box-sizing: content-box; pointer-events: none; }
+   #stage is only the box Webamp keeps them inside (see placeStage), and #safe
+   reads the safe-area insets for fit.js: on an iPhone Duo they can differ left
+   and right, and they change when it folds. */
+#stage { position: fixed; left: 0; top: 0; pointer-events: none; }
+#safe { position: fixed; visibility: hidden; pointer-events: none;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
 #webamp { image-rendering: pixelated; }
 
 /* iOS 27 draws a blur under the status bar unless the element it finds 4px down at the

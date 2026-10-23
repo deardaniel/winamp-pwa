@@ -2,39 +2,33 @@ import Webamp from "./vendor/webamp.bundle.min.mjs";
 import { GaplessMedia, sources, setUpcoming, outputMode } from "./media.js";
 import { readTags, groupAlbums } from "./tags.js";
 import * as store from "./store.js";
+import { fit } from "./fit.js";
 
 const $ = id => document.getElementById(id);
-const WIDTH = 275;       // a Winamp window, in skin pixels
-const WINDOW_H = 116;    // main and equalizer are each this tall
-const ROW_H = 29;        // the playlist grows in steps of this
 
 /* ---- Webamp, scaled to fill the screen ---- */
 
-// The skin is a fixed-size bitmap, so the three windows are stacked in a
-// 275px-wide column and the column is zoomed until it spans the display.
-function layout() {
-  const scale = Math.min(window.innerWidth / WIDTH, 3);
-  document.documentElement.style.setProperty("--scale", scale); // the bar is drawn in skin pixels too
-  const bar = $("bar").getBoundingClientRect().height;
-  const safeTop = parseFloat(getComputedStyle($("stage")).paddingTop) || 0; // the notch
-  const room = (window.innerHeight - safeTop - bar) / scale - WINDOW_H * 3;
-  return { scale, safeTop, extraRows: Math.max(0, Math.floor(room / ROW_H)) };
+// fit.js decides the zoom and where each window goes; this applies it. It runs
+// again on every resize, because an iPhone Duo folds and unfolds without
+// reloading the page.
+function measure() {
+  const safe = getComputedStyle($("safe"));
+  const inset = { top: parseFloat(safe.paddingTop) || 0, right: parseFloat(safe.paddingRight) || 0,
+                  left: parseFloat(safe.paddingLeft) || 0 };
+  return fit(window.innerWidth, window.innerHeight, inset, $("bar").getBoundingClientRect().height);
 }
 
-// Webamp centres its windows in the node it's given, measuring in unzoomed
-// pixels. So hand it a box exactly the size of the column, placed where the
-// column should sit once zoomed, and the centring works out to no offset.
-function placeStage({ scale, safeTop, extraRows }) {
-  const stage = $("stage");
-  stage.style.paddingTop = 0; // measured already; it would skew the centring
-  stage.style.top = `${safeTop / scale}px`;
-  stage.style.width = `${WIDTH}px`;
-  stage.style.height = `${WINDOW_H * 3 + extraRows * ROW_H}px`;
+// Webamp keeps its windows inside the node it's given, measured in unzoomed
+// pixels, and shoves any that stick out. Sized to the whole screen in skin
+// pixels, that box never makes it move one.
+function placeStage({ scale, stage }) {
+  document.documentElement.style.setProperty("--scale", scale);
+  $("stage").style.width = `${stage.width}px`;
+  $("stage").style.height = `${stage.height}px`;
 }
 
-const fit = layout();
-const { extraRows } = fit;
-placeStage(fit);
+const first = measure();
+placeStage(first);
 const savedSkin = await store.getSetting("skin").catch(() => null);
 
 const webamp = new Webamp({
@@ -46,9 +40,10 @@ const webamp = new Webamp({
   handleSaveListEvent: tracks => saveList(tracks),
   ...(savedSkin ? { initialSkin: { url: URL.createObjectURL(new Blob([savedSkin])) } } : {}),
   windowLayout: {
-    main: { position: { top: 0, left: 0 } },
-    equalizer: { position: { top: WINDOW_H, left: 0 } },
-    playlist: { position: { top: WINDOW_H * 2, left: 0 }, size: { extraHeight: extraRows, extraWidth: 0 } },
+    main: { position: { top: first.positions.main.y, left: first.positions.main.x } },
+    equalizer: { position: { top: first.positions.equalizer.y, left: first.positions.equalizer.x } },
+    playlist: { position: { top: first.positions.playlist.y, left: first.positions.playlist.x },
+                size: { extraHeight: first.rows, extraWidth: 0 } },
   },
 });
 const media = webamp.media;
@@ -117,18 +112,17 @@ webamp.store.subscribe(paint);
 // space at the bottom. Its side borders tile, so pin its height to the exact
 // remainder instead. A stylesheet rule, because Webamp rewrites the inline one.
 const exactHeight = document.head.appendChild(document.createElement("style"));
-let rows = fit.extraRows;
 function refit() {
-  const now = { ...layout(), safeTop: fit.safeTop };
+  const now = measure();
+  placeStage(now);
   root.style.zoom = now.scale;
-  const bar = $("bar").getBoundingClientRect().height;
-  const room = (window.innerHeight - now.safeTop - bar) / now.scale - WINDOW_H * 2;
-  const wantRows = Math.max(0, Math.floor((room - WINDOW_H) / ROW_H));
-  if (wantRows !== rows) {
-    rows = wantRows;
-    webamp.store.dispatch({ type: "WINDOW_SIZE_CHANGED", windowId: "playlist", size: [0, rows] });
-  }
-  exactHeight.textContent = room > WINDOW_H ? `#webamp #playlist-window { height: ${room}px !important; }` : "";
+  const { windows } = webamp.store.getState();
+  if (windows.genWindows.playlist.size[1] !== now.rows)
+    webamp.store.dispatch({ type: "WINDOW_SIZE_CHANGED", windowId: "playlist", size: [0, now.rows] });
+  // Put the windows back where they belong, after Webamp's own resize handler
+  // has had its go (it runs first and may have moved them).
+  webamp.store.dispatch({ type: "UPDATE_WINDOW_POSITIONS", positions: now.positions, absolute: true });
+  exactHeight.textContent = `#webamp #playlist-window { height: ${now.playlistH}px !important; }`;
 }
 refit();
 window.addEventListener("resize", refit);
