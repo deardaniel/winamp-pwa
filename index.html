@@ -2,16 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<!-- No viewport-fit=cover, and the "default" status bar: with either one iOS 27 runs the
+     home-screen app under the status bar and draws its blur over the player. Without them
+     the page starts below it, and #ios-blur-fix (style.css) does the rest. iOS reads the
+     status-bar style when the app is added: remove it from the Home Screen and add it again. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Gapless Amp</title>
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Amp">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <!-- iOS 27 status-bar blur: see #ios-blur-fix in style.css. -->
@@ -34,7 +38,7 @@
 <!-- No accept filter: iOS greys out extensions it has no type for, and .wsz is one. -->
 <input id="pick-skin" type="file" hidden>
 
-<script type="module" src="app.js?v=8"></script>
+<script type="module" src="app.js?v=9"></script>
 <!-- Hidden feedback trigger, on Daniel's devices only: see ~/kichi-feedback. -->
 <script src="https://kichi.tailae45a.ts.net:8447/feedback.js" data-app="gapless-amp" async></script>
 </body>
